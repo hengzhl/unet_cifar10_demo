@@ -2,7 +2,11 @@
 
 U-Net论文：[U-Net: Convolutional Networks for Biomedical Image Segmentation](https://arxiv.org/abs/1505.04597)
 
-项目代码仓：项目代码仓：[hengzhl/diffusion_demos/unet_cifar10_demo](https://github.com/hengzhl/diffusion_demos/tree/main/unet_cifar10_demo)
+项目代码仓：[hengzhl/unet_cifar10_demo](https://github.com/hengzhl/unet_cifar10_demo)
+
+```
+git clone https://github.com/hengzhl/unet_cifar10_demo.git
+```
 
 
 
