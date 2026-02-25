@@ -1,16 +1,12 @@
-## U-Net CIFAR-10 Denoising Demo
-
 U-Net论文：[U-Net: Convolutional Networks for Biomedical Image Segmentation](https://arxiv.org/abs/1505.04597)
 
-项目代码仓：[hengzhl/unet_cifar10_demo](https://github.com/hengzhl/unet_cifar10_demo)
+项目代码仓：[hengzhl/diffusion_demos/unet_cifar10_demo](https://github.com/hengzhl/diffusion_demos/tree/main/unet_cifar10_demo)
 
 ```
 git clone https://github.com/hengzhl/unet_cifar10_demo.git
 ```
 
-
-
-> U-Net 是一个卷积神经网络，通常用于**图 $\rightarrow$ 图（同尺寸）的任务**，具有语义分割和**空间定位**能力。它通过**对称的 U 型结构和跳跃连接**，融合了图片的抽象语义和几何细节。
+>U-Net 是一个卷积神经网络，通常用于**图 $\rightarrow$ 图（同尺寸）的任务**，具有语义分割和**空间定位**能力。它通过**对称的 U 型结构和跳跃连接**，融合了图片的抽象语义和几何细节。
 
 ### 一、Project Overview
 
@@ -19,20 +15,19 @@ git clone https://github.com/hengzhl/unet_cifar10_demo.git
 ### 二、Model Architecture
 
 本项目实现了一个**时间感知型 U-Net (Time-conditioned U-Net)**，其核心在于将扩散模型的时间步 $t$ 注入到每一个残差层中。
-
+        
 - **编码器与解码器 (Encoder & Decoder):**
-  
-  - **Encoder:** 包含两层残差块，配合 `MaxPool2d` 进行下采样，空间维度从 $32 \times 32$ 降至 $8 \times 8$
-  
-  - **Bottleneck:** 中间层使用 $256$ 通道的残差块提取高维特征。
-  
-  - **Decoder:** 使用 `ConvTranspose2d` 进行转置卷积上采样，并通过 `torch.cat` 实现**跳跃连接 (Skip Connections)**，将编码器的低级特征与解码器的高级特征融合。
+    
+    - **Encoder:** 包含两层残差块，配合 `MaxPool2d` 进行下采样，空间维度从 $32 \times 32$ 降至 $8 \times 8$
+        
+    - **Bottleneck:** 中间层使用 $256$ 通道的残差块提取高维特征。
+        
+    - **Decoder:** 使用 `ConvTranspose2d` 进行转置卷积上采样，并通过 `torch.cat` 实现**跳跃连接 (Skip Connections)**，将编码器的低级特征与解码器的高级特征融合。
 
 - **时间嵌入 MLP (Time Embedding):** * 将标量时间步 $t$ 通过两层全连接网络（`nn.Linear`）映射为 $256$ 维的向量 `t_emb`。这使得模型能够根据噪声强度的不同调整其去噪行为。
 
 - **残差块 (Residual Block):** * **时间注入：** 通过 `t_proj` 将时间向量映射到特征图的通道维度，并利用广播机制（Broadcasting）进行元素级相加。
-  
-  - **跳跃连接：** 内部使用 `shortcut`（`nn.Identity` 或 $1\times 1$ 卷积）确保输入与输出形状匹配，实现残差学习。
+    - **跳跃连接：** 内部使用 `shortcut`（`nn.Identity` 或 $1\times 1$ 卷积）确保输入与输出形状匹配，实现残差学习。
 
 ### 三、IPO Pipeline
 
@@ -49,21 +44,33 @@ git clone https://github.com/hengzhl/unet_cifar10_demo.git
 训练过程遵循回归任务的逻辑，目标是使预测噪声尽可能接近真实添加的噪声。
 
 - **损失函数:** 使用 **均方误差 (MSE Loss)**，计算 `predicted_noise` 与真实 `noise` 之间的差异。
-
+    
 - **优化算法:** 选用 `AdamW` 优化器，学习率为 $2 \times 10^{-4}$。
-
+    
 - **采样逻辑:**  在每个 batch 中，为每张图片随机采样不同的时间步 $t$。
-  
-  - 这种策略确保模型在一次迭代中能学习到不同受损程度下的去噪能力。
 
+    - 这种策略确保模型在一次迭代中能学习到不同受损程度下的去噪能力。
+        
 - **持久化存储:**  每隔 `save_model_epochs` 保存一次模型权重。
-  
-  - 保存内容包括模型状态字典（`state_dict`）、优化器状态以及当前 Epoch 数，支持断点续训。
+    
+    - 保存内容包括模型状态字典（`state_dict`）、优化器状态以及当前 Epoch 数，支持断点续训。
+        
+### 七、Quick Start
 
+```bash
+# 克隆仓库
+git clone https://github.com/your-username/unet-denoising.git
+# 运行训练脚本
+python train.py 
+```
 
-### 五、Results
+### 八、Results
 
-训练中断log如下，
+先进行过拟合测试（`overfit.py`），来证明模型框架具备去噪能力：
+
+![overfit](https://raw.githubusercontent.com/hengzhl/img-bed/main/img/comparison_result_overfit.png)
+
+然后使用训练集训练模型（`train.py`），
 
 ```python
 ......
@@ -77,9 +84,9 @@ Epoch 20/20: 100%|████████████████████�
 模型已保存: model\unet32_e19.pth
 ```
 
-demo仅仅训练了20个epoch，训练效果虽然不理想，但是证明了这个demo具有预测噪声的能力。
-
 ![对比图](https://raw.githubusercontent.com/hengzhl/img-bed/main/img/comparison_result.png)
+
+训练效果不理想，一方面是训练轮数太少，另一方面对于多步加噪数据，仅采用简单的一步去噪；故该项目仅作为熟悉`unet`的学习性项目。
 
 ### 附录：Analysis and Design
 
@@ -88,19 +95,19 @@ demo仅仅训练了20个epoch，训练效果虽然不理想，但是证明了这
 IPO 流程：
 
 - **Input**:  $32 \times 32 \times 3$ 的加噪图像。像素值已被高斯噪声污染。
-
+    
 - **Process**:
-  
-  - **Level 1**: $32 \times 32 \rightarrow$ 卷积提取特征 ($64$ 通道) $\rightarrow$ 池化降维至 $16 \times 16$。
-  
-  - **Level 2**: $16 \times 16 \rightarrow$ 卷积提取特征 ($128$ 通道) $\rightarrow$ 池化降维至 $8 \times 8$。
-  
-  - **Bottleneck (瓶颈层)**: 此时图片只有 $8 \times 8$，这是**语义最浓缩**的地方。
-  
-  - **Level 2 Up**: 上采样回 $16 \times 16 +$ **融合 Level 2 的原始特征**。
-  
-  - **Level 1 Up**: 上采样回 $32 \times 32 +$ **融合 Level 1 的原始特征**。
-
+    
+    - **Level 1**: $32 \times 32 \rightarrow$ 卷积提取特征 ($64$ 通道) $\rightarrow$ 池化降维至 $16 \times 16$。
+        
+    - **Level 2**: $16 \times 16 \rightarrow$ 卷积提取特征 ($128$ 通道) $\rightarrow$ 池化降维至 $8 \times 8$。
+        
+    - **Bottleneck (瓶颈层)**: 此时图片只有 $8 \times 8$，这是**语义最浓缩**的地方。
+        
+    - **Level 2 Up**: 上采样回 $16 \times 16 +$ **融合 Level 2 的原始特征**。
+        
+    - **Level 1 Up**: 上采样回 $32 \times 32 +$ **融合 Level 1 的原始特征**。
+        
 - **Output**:  $32 \times 32 \times 3$ 的噪声预测图。
 
 | **      阶段        ** | **模块名称**   | **输入尺寸**      | **输出尺寸**      | **      核心参数设计 (PyTorch 风格)            ** |
@@ -127,7 +134,7 @@ class UNetCIFAR(nn.Module):
         # 第一层：32x32 -> 16x16
         self.enc1 = self._block(3, 64)             # (N, 64, 32, 32)
         self.pool1 = nn.MaxPool2d(kernel_size=2)   # (N, 64, 16, 16)
-
+        
         # 第二层：16x16 -> 8x8
         self.enc2 = self._block(64, 128)           # (N, 128, 16, 16)
         self.pool2 = nn.MaxPool2d(kernel_size=2)   # (N, 128, 8, 8)
@@ -140,7 +147,7 @@ class UNetCIFAR(nn.Module):
         self.up1 = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         # 注意：拼接后输入通道是 256(来自Up) + 128(来自Encoder2) = 384
         self.dec1 = self._block(256 + 128, 128)
-
+        
         # 第二层上采样：16x16 -> 32x32
         self.up2 = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         # 拼接后输入通道是 128 + 64 = 192
@@ -164,19 +171,19 @@ class UNetCIFAR(nn.Module):
         # Encoder
         e1 = self.enc1(x)                   # (N, 64, 32, 32)
         e2 = self.enc2(self.pool1(e1))      # (N, 128, 16, 16)
-
+        
         # Middle
         b = self.bottleneck(self.pool2(e2)) # (N, 256, 8, 8)
-
+        
         # Decoder + Skip Connections
         d1 = self.up1(b)                    # (N, 256, 16, 16)
         d1 = torch.cat([d1, e2], dim=1)     # (N, 384, 16, 16)
         d1 = self.dec1(d1)                  # (N, 128, 16, 16)
-
+        
         d2 = self.up2(d1)                   # (N, 128, 32, 32)
         d2 = torch.cat([d2, e1], dim=1)     # (N, 192, 32, 32)
         d2 = self.dec2(d2)                  # (N, 64, 32, 32)
-
+        
         return self.final(d2)               # (N, 3, 32, 32)
 
 # 测试模型
@@ -186,6 +193,7 @@ if __name__ == "__main__":
     output = model(x)
     print(f"输入形状: {x.shape} -> 输出形状: {output.shape}")
 ```
+
 
 **如果加入时间步 t 表示噪声的强度**（比如为CIRFAR10加入 t 次高斯噪声得到含噪图），输入（Input）多了一个 t ，过程处理中将标量 $t$ 通过正弦编码或 MLP 转化为一个高维向量，在 U-Net 的每一层或 Bottleneck 处，将这个时间向量“注入”到卷积提取的特征图中。
 
@@ -239,7 +247,7 @@ class UNetDiffusionCIFAR(nn.Module):
     def __init__(self, t_dim=256):
         super().__init__()
         self.t_dim = t_dim
-
+        
         # 1. 时间嵌入 MLP
         self.time_mlp = nn.Sequential(
             nn.Linear(1, t_dim),
@@ -259,7 +267,7 @@ class UNetDiffusionCIFAR(nn.Module):
         # 4. Decoder
         self.up1 = nn.ConvTranspose2d(256, 128, 2, stride=2)
         self.dec1 = ResidualBlock(128 + 128, 128, t_dim)
-
+        
         self.up2 = nn.ConvTranspose2d(128, 64, 2, stride=2)
         self.dec2 = ResidualBlock(64 + 64, 64, t_dim)
 
@@ -279,7 +287,7 @@ class UNetDiffusionCIFAR(nn.Module):
         # Decoder + Skip Connections
         d1 = self.up1(b)
         d1 = self.dec1(torch.cat([d1, e2], dim=1), t_emb)
-
+        
         d2 = self.up2(d1)
         d2 = self.dec2(torch.cat([d2, e1], dim=1), t_emb)
 
@@ -294,10 +302,11 @@ class ResidualBlock(nn.Module):
         self.t_proj = nn.Linear(t_dim, out_c) # 将时间维度映射到通道维度
         self.conv2 = nn.Conv2d(out_c, out_c, 3, padding=1)
         self.shortcut = nn.Conv2d(in_c, out_c, 1) if in_c != out_c else nn.Identity() # 把 3 通道的输入“变宽”成 64 通道，但像素内容基本不变，方便后续相加
-
+        
     def forward(self, x, t_emb):
         h = F.relu(self.conv1(x))
         h = h + self.t_proj(t_emb)[:, :, None, None] # 广播，注入时间信息
         h = F.relu(self.conv2(h))
         return h+self.shortcut(x) 
 ```
+

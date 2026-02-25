@@ -9,25 +9,23 @@ from tqdm import tqdm
 
 from cfg import train_cfg  
 from unet import UNetDiffusionCIFAR as net
+from loader import train_loader
 
 def train():
     save_dir = Path(train_cfg.save_path)
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    # --- 1. 数据准备 ---
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # 归一化到 [-1, 1]
-    ])
-    
-    dataset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-    dataloader = DataLoader(dataset, batch_size=train_cfg.batch_size, shuffle=True, num_workers=train_cfg.num_workers)
+    # --- 1. 数据加载 ---
+    dataloader = train_loader  
 
     # --- 2. 初始化 ---
     model = net(t_dim = train_cfg.t_dim).to(train_cfg.device)
+    
     optimizer = optim.AdamW(model.parameters(), lr=train_cfg.lr)
+
     # 引入余弦退火调度器：从 cfg.lr 开始，在指定 Epoch 内降至接近 0
     lr_scheduler = scheduler.CosineAnnealingLR(optimizer, T_max=train_cfg.epochs)
+
     criterion = nn.MSELoss()
 
     # --- 断点续训加载逻辑 ---
